@@ -1,8 +1,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <string>
+#include <sstream>
+#include <nlohmann/json.hpp>
 
 #include "structures/vroom/solution/solution.cpp"
+
+using json = nlohmann::json;
 
 namespace py = pybind11;
 
@@ -84,6 +88,66 @@ void init_solution(py::module_ &m){
     .def_readwrite("error", &vroom::Solution::error)
     .def_readonly("summary", &vroom::Solution::summary)
     .def_readonly("_routes", &vroom::Solution::routes)
-    .def_readonly("unassigned", &vroom::Solution::unassigned);
+    .def_readonly("unassigned", &vroom::Solution::unassigned)
+    .def("to_json", [](const vroom::Solution& solution) {
+      json j;
+      j["code"] = solution.code;
+      j["error"] = solution.error;
+      
+      // Add summary
+      j["summary"] = {
+        {"cost", solution.summary.cost},
+        {"unassigned", solution.summary.unassigned},
+        {"service", solution.summary.service},
+        {"duration", solution.summary.duration},
+        {"waiting_time", solution.summary.waiting_time},
+        {"setup", solution.summary.setup},
+        {"distance", solution.summary.distance}
+      };
+
+      // Add routes
+      j["routes"] = json::array();
+      for (const auto& route : solution.routes) {
+        json route_json;
+        route_json["vehicle"] = route.vehicle;
+        route_json["steps"] = json::array();
+        
+        for (const auto& step : route.steps) {
+          json step_json;
+          step_json["id"] = step.id;
+          step_json["type"] = step.step_type;
+          step_json["arrival"] = step.arrival;
+          step_json["duration"] = step.duration;
+          step_json["setup"] = step.setup;
+          step_json["service"] = step.service;
+          step_json["waiting_time"] = step.waiting_time;
+          step_json["description"] = step.description;
+          
+          if (step.location.has_coordinates()) {
+            step_json["location"] = {
+              {"lon", step.location.lon()},
+              {"lat", step.location.lat()}
+            };
+          }
+          if (step.location.user_index()) {
+            step_json["location_index"] = step.location.index();
+          }
+          
+          route_json["steps"].push_back(step_json);
+        }
+        j["routes"].push_back(route_json);
+      }
+
+      // Add unassigned jobs
+      j["unassigned"] = json::array();
+      for (const auto& job : solution.unassigned) {
+        j["unassigned"].push_back({
+          {"id", job.id},
+          {"type", job.type}
+        });
+      }
+
+      return j.dump();
+    });
 
 }

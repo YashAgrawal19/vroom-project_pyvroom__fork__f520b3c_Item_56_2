@@ -1,5 +1,6 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union
 import json
+from pathlib import Path
 
 import numpy
 import pandas
@@ -37,3 +38,18 @@ class Solution(_vroom.Solution):
             else:
                 frame.loc[frame[column] == NA_SUBSTITUTE, column] = pandas.NA
         return frame
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the solution to a dictionary by parsing its JSON representation."""
+        return json.loads(self.to_json())
+
+    def save_json(self, path: Union[str, Path]) -> None:
+        """Save the solution to a JSON file.
+        
+        Args:
+            path: Path to the output JSON file
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w') as f:
+            f.write(self.to_json())
